@@ -20,7 +20,7 @@
 - button "Settings":
   - img
   - text: Settings
-- text: How can I help Preview
+- text: Memory with Bear Power Preview
 - button "Choose workspace":
   - img
   - text: workspace
