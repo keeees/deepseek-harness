@@ -1,0 +1,50 @@
+# Route the agent at the vLLM server running on the deployment host instead of a
+# hosted API. Applied as a second launcher overlay, after the brand layer:
+#
+#   dsh web --patch deploy/memorybear/brand.patch.yml \
+#           --patch deploy/memorybear/local-vllm.patch.yml
+#
+# Model routing is deployment, not branding, which is why it is a separate file:
+# a host without the vLLM container simply omits it and keeps the hosted route.
+
+# The base bundle mounts `llm-pi-ai` dormant — the generic adapter is present
+# but owns zero routes until a profile supplies one. `local-vllm` is a
+# hand-declared route: pi-ai ships no catalog under that key, so the endpoint,
+# the wire protocol and the model list are all stated here rather than inherited.
+- id: llm-pi-ai
+  config:
+    providers:
+      local-vllm:
+        displayName: Local vLLM
+        api: openai-completions
+        # Loopback on the host that runs this service, not on the client.
+        baseURL: http://127.0.0.1:8000/v1
+        # No apiKeyEnv on purpose: this vLLM listens without authentication, and
+        # a declared route with no credential reference sends none. Naming a
+        # reference that resolved to nothing would fail every request with
+        # MISSING_CREDENTIAL instead.
+        compat:
+          # pi-ai cannot recognise this endpoint from its URL, so without these
+          # it would address it as OpenAI itself. vLLM reads the older output-cap
+          # field, and the `developer` role is an OpenAI reasoning-model concept
+          # this server does not implement.
+          maxTokensField: max_tokens
+          supportsDeveloperRole: false
+        models:
+          - id: Qwen2.5-3B-Instruct-GPTQ-Int8
+            name: Qwen2.5 3B Instruct (GPTQ Int8)
+            # Matches the container's reported max_model_len; the output cap is
+            # carved out of the same window, so it stays well under it.
+            contextWindow: 16384
+            maxTokens: 4096
+            # Not a reasoning model. Declaring false keeps thinking levels out of
+            # the selector; omitting the field would leave pi-ai to infer, and an
+            # empty declaration is refused rather than guessed.
+            reasoningEfforts: false
+
+# Entry points stamp new Agents with this pair, so the local route has to become
+# the default or every new session would still open on the hosted model.
+- id: agent-default-model
+  config:
+    provider: local-vllm
+    model: Qwen2.5-3B-Instruct-GPTQ-Int8

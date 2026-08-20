@@ -57,6 +57,8 @@ Examples:
   dsh --profile web                          serve on the composed host and port
   dsh --profile web --no-open                serve without opening a browser
   dsh --profile web --port 8080              serve on another port
+  dsh --profile web --host 0.0.0.0 \\
+      --trusted-host 192.168.1.10            serve to the network (no auth: see --host in the README)
 `)
 }
 
@@ -71,9 +73,16 @@ export function apply(ctx: Context): void {
   const program = webCommand()
   program.action(() => {
     const options = program.opts<WebOptions>()
-    if (options.host === '0.0.0.0') {
-      program.error('error: --host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
-    }
+    // FORK DIVERGENCE from deepseek-ai/deepseek-harness: upstream refuses
+    // `--host 0.0.0.0` here on the grounds that it exposes remote code
+    // execution to the network. That reasoning is correct and unchanged — this
+    // deployment accepts it knowingly, because reaching the UI from other
+    // machines is a requirement and the webserver schema admits no third bind
+    // value. The exposure is real: the UI carries no authentication of its own
+    // and the agent runs shell commands, so anything that can reach the port
+    // has code execution as the service user. Whatever access control exists
+    // must be supplied around this process, not by it. Restoring the guard is
+    // a one-line revert; a merge conflict here is the upstream guard returning.
     if (options.port !== undefined && !/^\d+$/.test(options.port)) {
       program.error(`error: --port must be a number, got ${JSON.stringify(options.port)}`)
     }
