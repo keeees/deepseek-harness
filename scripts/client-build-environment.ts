@@ -22,6 +22,26 @@ const OFFICIAL_CLIENT_BUILD_ENVIRONMENT = {
   DSH_CLIENT_TITLE: 'DeepSeek Harness',
 } as const
 
+/**
+ * Public client environment for MemoryBear-branded artifacts.
+ *
+ * The profile name selects `deploy/memorybear/public` as the Vite public
+ * directory, which is how the favicon and web manifest get rebranded. It also
+ * keeps the upstream official brand occupants unregistered: those gate on the
+ * value being exactly `official`, so the MemoryBear occupants own the brand
+ * slots alone.
+ */
+const MEMORYBEAR_CLIENT_BUILD_ENVIRONMENT = {
+  DSH_CLIENT_BUILD_PROFILE: 'memorybear',
+  DSH_CLIENT_TITLE: 'MemoryBear',
+} as const
+
+/** Named artifact profiles, each an exact public environment minus the commit. */
+const NAMED_CLIENT_BUILD_PROFILES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  memorybear: MEMORYBEAR_CLIENT_BUILD_ENVIRONMENT,
+  official: OFFICIAL_CLIENT_BUILD_ENVIRONMENT,
+}
+
 /** Public variable carrying the source commit embedded in client artifacts. */
 const CLIENT_COMMIT_HASH_VARIABLE = 'DSH_CLIENT_COMMIT_HASH'
 
@@ -113,14 +133,16 @@ export function resolveClientBuildEnvironment(
   profile: string | undefined = environment[CLIENT_BUILD_PROFILE_SELECTOR],
 ): ClientBuildEnvironment {
   if (profile === undefined) return clientBuildEnvironment(environment)
-  if (profile === 'official') {
-    const commitHash = environment[CLIENT_COMMIT_HASH_VARIABLE]
-    if (commitHash === undefined) {
-      throw new Error(`${CLIENT_COMMIT_HASH_VARIABLE} is required for the official client build profile`)
-    }
-    return { DSH_CLIENT_COMMIT_HASH: commitHash, ...OFFICIAL_CLIENT_BUILD_ENVIRONMENT }
+  const named = NAMED_CLIENT_BUILD_PROFILES[profile]
+  if (named === undefined) {
+    const known = Object.keys(NAMED_CLIENT_BUILD_PROFILES).map(name => JSON.stringify(name)).join(' or ')
+    throw new Error(`unknown client build profile ${JSON.stringify(profile)}; expected ${known}`)
   }
-  throw new Error(`unknown client build profile ${JSON.stringify(profile)}; expected "official"`)
+  const commitHash = environment[CLIENT_COMMIT_HASH_VARIABLE]
+  if (commitHash === undefined) {
+    throw new Error(`${CLIENT_COMMIT_HASH_VARIABLE} is required for the ${profile} client build profile`)
+  }
+  return { DSH_CLIENT_COMMIT_HASH: commitHash, ...named }
 }
 
 /**

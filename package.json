@@ -19,6 +19,7 @@
   "scripts": {
     "build": "tsx scripts/build.ts",
     "build:official": "tsx scripts/build.ts --profile official",
+    "build:memorybear": "tsx scripts/build.ts --profile memorybear",
     "build:lib": "npm run build:lib:host && npm run build:lib:client",
     "build:lib:host": "tsc -b tsconfig.host.json && tsdown --env.DSH_BUILD_FACE host",
     "build:lib:client": "tsc -b tsconfig.client.json && tsdown --env.DSH_BUILD_FACE client",
@@ -139,6 +140,7 @@
     "release:verify-packed-install": "tsx scripts/release/verify-packed-install.ts",
     "release:publish": "tsx scripts/release/publish.ts",
     "dsh": "node --import tsx/esm apps/cli/src/bin.ts",
+    "memorybear": "node --import tsx/esm apps/cli/src/bin.ts web --patch deploy/memorybear/brand.patch.yml",
     "demo:code-mode": "node scripts/demo-code-mode.mjs",
     "demo:cordis": "node scripts/demo-cordis.mjs",
     "demo:acp": "node --import tsx packages/examples/acp-demo/src/bin.ts --config examples/acp-agent/cordis.yml",

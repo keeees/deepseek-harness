@@ -1,0 +1,15 @@
+/* The wordmark owns its own type treatment: the sidebar slot hands the
+   occupant an empty owner share, so nothing about the name is host-styled. */
+.wordmark {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* The second syllable carries the product red — the same value the mark's
+   spectacles use — so the wordmark and the mark read as one identity. */
+.accent {
+  color: #dd3838;
+}

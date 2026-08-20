@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import type { Plugin } from 'vite'
@@ -22,6 +23,56 @@ function clientDocumentTitle(): Plugin {
     name: 'dsh-client-document-title',
     transformIndexHtml(html) {
       return html.replace('<title>DSH Local Build</title>', `<title>${title}</title>`)
+    },
+  }
+}
+
+/**
+ * Optional brand icons, each linked only when the deployment ships the file.
+ *
+ * The shipped `index.html` links one SVG icon, which no raster-only surface can
+ * consume: an iOS home screen and several launchers need a PNG, and some
+ * environments still ask for `favicon.ico`. Each entry is therefore additive —
+ * a deployment supplies as many as it has.
+ */
+const BRAND_ICON_LINKS: readonly { readonly file: string; readonly tag: string }[] = [
+  { file: 'favicon.ico', tag: '<link rel="icon" sizes="16x16 32x32 48x48" href="/favicon.ico" />' },
+  { file: 'icon-180.png', tag: '<link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png" />' },
+]
+
+/**
+ * Serve a deployment's own icons and web manifest.
+ *
+ * The document title reaches the browser as a define, but icons and the
+ * manifest are static files Vite copies verbatim — no define can reach them.
+ * A rebranded artifact therefore swaps the whole public directory instead of
+ * rewriting individual assets, which also keeps `apps/web/public` unmodified
+ * and the working tree clean across builds. A profile that ships no
+ * `deploy/<profile>/public` directory keeps the repository's own assets.
+ *
+ * The SVG link already in `index.html` stays first so browsers that prefer a
+ * vector icon keep using it; the added links serve the surfaces that cannot.
+ */
+function clientBrandPublicDir(): Plugin {
+  let brandDir: string | undefined
+  return {
+    name: 'dsh-client-brand-public-dir',
+    config() {
+      const profile = process.env.DSH_CLIENT_BUILD_PROFILE
+      // The value names a directory, so only a plain profile token is accepted.
+      if (profile === undefined || !/^[a-z][a-z0-9-]*$/.test(profile)) return undefined
+      const dir = src(`../../deploy/${profile}/public`)
+      if (!existsSync(dir)) return undefined
+      brandDir = dir
+      return { publicDir: dir }
+    },
+    transformIndexHtml(html) {
+      if (brandDir === undefined) return html
+      const dir = brandDir
+      const tags = BRAND_ICON_LINKS
+        .filter(icon => existsSync(`${dir}/${icon.file}`))
+        .map(icon => `    ${icon.tag}`)
+      return tags.length === 0 ? html : html.replace('  </head>', `${tags.join('\n')}\n  </head>`)
     },
   }
 }
@@ -108,7 +159,7 @@ function npmPackageOf(id: string): string | undefined {
 }
 
 export default defineConfig({
-  plugins: [rejectStandaloneServe(), clientDocumentTitle(), react()],
+  plugins: [rejectStandaloneServe(), clientDocumentTitle(), clientBrandPublicDir(), react()],
   build: {
     sourcemap: true,
     rollupOptions: {

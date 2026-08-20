@@ -1,0 +1,37 @@
+# MemoryBear brand overlay — a launcher patch layer applied over the composed
+# `web` profile:
+#
+#   dsh web --patch deploy/memorybear/brand.patch.yml
+#
+# It is a WRAPPER, not a rename: every upstream package keeps its own name, so
+# the fork stays mergeable with deepseek-ai/deepseek-harness. Only what a
+# browser user actually sees moves to MemoryBear. The browser tab title and the
+# in-app document title are the one brand surface this file cannot reach — they
+# are build-time values, so pair this overlay with a build that sets
+# DSH_CLIENT_TITLE=MemoryBear (see the `memorybear` scripts in package.json).
+
+# The upstream occupants register only in an artifact build whose
+# DSH_CLIENT_BUILD_PROFILE is `official`, so they are already inert here.
+# Disabling them is explicit belt-and-braces: an accidental official build must
+# not mix two brands in one sidebar.
+- id: ui-brand-official
+  disabled: true
+
+# The MemoryBear occupants for `sidebar.brand.mark`, `sidebar.brand.name`, and
+# `conversation.hero.brand.mark`. Unlike the official package this one has no
+# self-gate: being mounted here IS the decision.
+- insert:
+    - id: ui-brand-memorybear
+      name: '@deepseek-ai/dsh-client-ui-brand-memorybear'
+
+# A patch replaces the targeted row's whole `config`, so this restates every key
+# MemoryBear owns on the row. `includeHarnessIdentity: false` drops the fixed
+# upstream identity sentence ahead of the persona; the persona below is then the
+# agent's only self-description. `includeRuntimeContext` is left to its schema
+# default (true).
+- id: system-prompt
+  config:
+    includeHarnessIdentity: false
+    persona: >-
+      You are MemoryBear, a coding agent powered by the {{model}} model.
+      Your working directory is {{cwd}}.
