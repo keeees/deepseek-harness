@@ -37,3 +37,24 @@
 - id: system-prompt
   config:
     includeHarnessIdentity: false
+
+# Mount MemoryBear's own agent preset instead of the shipped `standard` one.
+#
+# A preset is where the persona and the context-injection rows live, and a
+# preset file is not reachable from a host patch layer — so owning the preset is
+# what lets this deployment state its identity and choose what reaches the model
+# without editing anything upstream. `deploy/memorybear/agent-presets/memorybear`
+# is a copy of `standard` with three differences, each explained at its site:
+# the persona names MemoryBear and constrains how other product names may be
+# used, and the `agent-instructions` and skill-discovery rows are absent because
+# both injected this checkout's own harness documentation into every prompt.
+#
+# Naming `roots` replaces the shipped root that `composeProfile` patches in, so
+# this deployment offers exactly one preset. That is deliberate: a product with
+# a fixed surface has no use for the harness-development presets.
+- id: agent-presets
+  config:
+    default: memorybear
+    roots:
+      - path: !!js process.cwd() + '/deploy/memorybear/agent-presets'
+        trust: system
