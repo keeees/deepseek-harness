@@ -49,12 +49,22 @@
 # used, and the `agent-instructions` and skill-discovery rows are absent because
 # both injected this checkout's own harness documentation into every prompt.
 #
-# Naming `roots` replaces the shipped root that `composeProfile` patches in, so
-# this deployment offers exactly one preset. That is deliberate: a product with
-# a fixed surface has no use for the harness-development presets.
+# Only `default` is stated here. `roots` deliberately is NOT: the shipped preset
+# root is an assembly fact that `apps/cli`'s `composeProfile` patches onto this
+# row AFTER every launcher overlay, so a `roots` value set here is replaced
+# before the roster ever reads it — the composed config prints it and the running
+# roster ignores it, which is exactly how long it took to notice.
+#
+# The preset therefore has to arrive through the one root the app patch does not
+# own: `includeUserRoot` appends `$DSH_HOME/.agent-presets` after every
+# configured root. The deployment symlinks this preset in there:
+#
+#   ln -sfn <checkout>/deploy/memorybear/agent-presets/memorybear \
+#           $DSH_HOME/.agent-presets/memorybear
+#
+# so the versioned copy stays the source of truth and a pull updates it. If that
+# link is missing, session creation fails with agent-preset-not-found rather than
+# falling back — name `standard` here to recover.
 - id: agent-presets
   config:
     default: memorybear
-    roots:
-      - path: !!js process.cwd() + '/deploy/memorybear/agent-presets'
-        trust: system
