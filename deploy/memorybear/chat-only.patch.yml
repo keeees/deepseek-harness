@@ -1,0 +1,32 @@
+# Trim the Web surface to a conversation-only product. Applied as a launcher
+# overlay after the brand layer:
+#
+#   dsh web --patch deploy/memorybear/brand.patch.yml \
+#           --patch deploy/memorybear/local-vllm.patch.yml \
+#           --patch deploy/memorybear/chat-only.patch.yml
+#
+# Everything here is a row disable, so the surface is a deployment decision and
+# nothing upstream had to change: dropping this file restores the full GUI.
+
+# The Trajectory view. The conversation shell renders its view tab bar only when
+# more than one view is registered (ConversationSession.tsx), so removing this
+# row takes the whole Chat/Trajectory tab strip with it rather than leaving a
+# single lonely tab.
+- id: ui-trajectory
+  disabled: true
+
+# The composer's model picker and the /model command. This deployment pins one
+# route in local-vllm.patch.yml, so a picker could only offer the user a way to
+# select something that is not configured.
+- id: ui-model-selection
+  disabled: true
+
+# The Models settings page: provider rows, API-key fields, model catalogue
+# editing. Same reason — the route is a deployment fact here, not a user choice.
+#
+# NOTE this row also owns the first-run onboarding dialogs, so disabling it also
+# removes the internal-testing notice and the credential setup step. That is the
+# intended trade here (a product with a fixed local model needs neither), but it
+# is why the notice disappears, rather than something breaking.
+- id: ui-settings-models
+  disabled: true

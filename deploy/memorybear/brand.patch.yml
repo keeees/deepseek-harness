@@ -24,14 +24,16 @@
     - id: ui-brand-memorybear
       name: '@deepseek-ai/dsh-client-ui-brand-memorybear'
 
-# A patch replaces the targeted row's whole `config`, so this restates every key
-# MemoryBear owns on the row. `includeHarnessIdentity: false` drops the fixed
-# upstream identity sentence ahead of the persona; the persona below is then the
-# agent's only self-description. `includeRuntimeContext` is left to its schema
-# default (true).
+# Drop the fixed upstream identity sentence ("You are an AI agent powered by
+# DeepSeek Harness.") that would otherwise open every system prompt.
+#
+# The MemoryBear identity itself is deliberately NOT set here. A `persona` on
+# this row is the DEPLOYMENT default, and every agent preset this app ships
+# mounts its own `dsh-persona` row, which shadows it — so a persona configured
+# here renders for nobody. The identity lives in the presets instead:
+# apps/cli/config/agent-presets/<preset>/agent.cordis.yml. Verified by reading
+# the assembled prompt out of a session log, not by reading the composed config,
+# because the composed config shows a persona that the preset then replaces.
 - id: system-prompt
   config:
     includeHarnessIdentity: false
-    persona: >-
-      You are MemoryBear, a coding agent powered by the {{model}} model.
-      Your working directory is {{cwd}}.

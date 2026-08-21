@@ -133,9 +133,32 @@ function locationCoordinates(location: ConversationLocation): { turn?: number; s
   return {}
 }
 
+/**
+ * FORK DIVERGENCE from deepseek-ai/deepseek-harness: node kinds this deployment
+ * presents as a conversation rather than an execution trace. Suppression happens
+ * here, at the flow filter, rather than by leaving their renderers unregistered:
+ * the Chat Node seat falls back to an unknown-surface JSON dump when a kind has
+ * no renderer, so an unregistered kind would be louder than the row it replaced,
+ * and a null-rendering occupant would still leave the seat's wrapper element
+ * behind. Dropping the node means it was never in the flow at all.
+ *
+ *   context            "Context injection · AGENTS.md" and friends
+ *   model-retry        "Retried model request (5/5)" and its delay detail
+ *   compaction         automatic history compaction notices
+ *   manual-compaction  the /compact acknowledgement
+ *
+ * turn-error and turn-max-tokens are deliberately absent from this set: a failed
+ * or truncated turn is an outcome the user has to see, not machinery. Emptying
+ * the set restores the upstream flow.
+ */
+const SUPPRESSED_FLOW_KINDS: ReadonlySet<string> = new Set([
+  'context', 'model-retry', 'compaction', 'manual-compaction',
+])
+
 function orderedVisible(nodes: readonly ChatConversationViewNode[]): ChatConversationViewNode[] {
   return nodes
     .filter(node => node.visibility === 'visible')
+    .filter(node => !SUPPRESSED_FLOW_KINDS.has((node as ChatNode).kind))
     .sort((left, right) => left.anchorSeq - right.anchorSeq || left.key.localeCompare(right.key))
 }
 
