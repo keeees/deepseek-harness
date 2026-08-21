@@ -19,10 +19,15 @@
         api: openai-completions
         # Loopback on the host that runs this service, not on the client.
         baseURL: http://127.0.0.1:8000/v1
-        # No apiKeyEnv on purpose: this vLLM listens without authentication, and
-        # a declared route with no credential reference sends none. Naming a
-        # reference that resolved to nothing would fail every request with
-        # MISSING_CREDENTIAL instead.
+        # This vLLM is started without --api-key, so it never inspects the
+        # Authorization header and the value here is meaningless to it. The
+        # reference is still required: pi-ai refuses to construct an
+        # openai-completions provider with no credential at all and fails the
+        # turn with "No API key for provider" before any request goes out.
+        # The variable therefore has to exist with some value — the service unit
+        # sets it — but it is a placeholder, not a secret. Point this at a real
+        # reference if the server is ever restarted with --api-key.
+        apiKeyEnv: LOCAL_VLLM_API_KEY
         compat:
           # pi-ai cannot recognise this endpoint from its URL, so without these
           # it would address it as OpenAI itself. vLLM reads the older output-cap
