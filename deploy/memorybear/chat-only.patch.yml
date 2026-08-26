@@ -21,6 +21,13 @@
 - id: ui-model-selection
   disabled: true
 
+# The Agent presets settings section. This deployment ships exactly one preset
+# and makes it the default, so the section could only offer a choice of one —
+# and it is also an authoring surface: a preset IS a composition, so writing one
+# carries the same trust as shell access.
+- id: ui-agent-preset
+  disabled: true
+
 # The Models settings page: provider rows, API-key fields, model catalogue
 # editing. Same reason — the route is a deployment fact here, not a user choice.
 #

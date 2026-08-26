@@ -250,10 +250,10 @@
   config:
     allowParallelInProgress: true
 
-# The `web` service and its search provider stay in the host composition; only
-# the model-facing tool is per-session.
-- id: tool-web
-  name: '@deepseek-ai/dsh-tool-web'
-  config:
-    fetch: false
-    searchTimeoutMs: 60000
+# The model-facing web tool that upstream's `standard` preset mounts here is
+# deliberately absent, so this agent has no web_search and no fetch. Search was
+# routed at a provider needing a hosted credential this deployment does not
+# carry, so every call failed and spent a turn; fetch was already off upstream
+# because that provider defers SSRF protection and the model picks the target.
+# The `web` service and its search provider stay in the host composition, so
+# restoring the tool is this one row.
