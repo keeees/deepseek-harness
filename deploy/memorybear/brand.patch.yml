@@ -57,14 +57,66 @@
 #
 # The preset therefore has to arrive through the one root the app patch does not
 # own: `includeUserRoot` appends `$DSH_HOME/.agent-presets` after every
-# configured root. The deployment symlinks this preset in there:
+# configured root. The deployment symlinks the whole preset DIRECTORY in there:
 #
-#   ln -sfn <checkout>/deploy/memorybear/agent-presets/memorybear \
-#           $DSH_HOME/.agent-presets/memorybear
+#   ln -sfn <checkout>/deploy/memorybear/agent-presets $DSH_HOME/.agent-presets
 #
-# so the versioned copy stays the source of truth and a pull updates it. If that
-# link is missing, session creation fails with agent-preset-not-found rather than
-# falling back — name `standard` here to recover.
+# so the versioned copy stays the source of truth and a pull updates it. It has
+# to be the directory, not the preset inside it: discovery lists candidates with
+# readdir(withFileTypes) and keeps only entries where isDirectory() is true,
+# which a symlink-to-directory is not — so linking a single preset into a real
+# `.agent-presets` directory silently finds nothing.
+#
+# If the link is missing, session creation fails with agent-preset-not-found
+# rather than falling back — name `standard` here to recover.
+#
+# One layer still outranks this value: a persisted `agent-presets.default` in
+# $DSH_HOME/settings.yaml wins over composed config, and the (now disabled)
+# preset picker wrote exactly that key. A deployment that has ever had it set
+# keeps obeying the file, so check there first when new sessions come up on the
+# wrong preset. Sessions also record their own choice — resume prefers the newest
+# `agent-preset/selected` entry in the log over this default, by design.
 - id: agent-presets
   config:
     default: memorybear
+
+# Stop injecting the two developer-orientation prompt sections that `dsh web`
+# adds by default. This single flag removes both, and it is the only lever that
+# reaches them: their text is built in code, so no patch can rewrite it, and the
+# alternative the bundle documents — `complete: true` on the preset persona —
+# suppresses EVERY other section, including the read/write/edit/glob/grep/bash
+# guidance the tools depend on.
+#
+# What goes away, and why each one had to:
+#
+#   * The harness-source section named a different product to the model on the
+#     very first line of every prompt, and told it the checkout is there "to
+#     inspect or extend" that product. Nothing else in the prompt could outrank
+#     a statement in position one.
+#   * The web-surface section advertised the wrong address. It always prints a
+#     loopback URL derived from the bind, so it said 127.0.0.1:3081 while users
+#     reach this deployment at https://192.168.111.146 through nginx — the model
+#     would hand out an address no user can open. The rest of that section is an
+#     update contract about `pnpm run dev:web`, HMR receivers, Vite entries and
+#     rebuilding `apps/web`, which is accurate for a developer checkout and
+#     meaningless to a chat user who cannot rebuild anything.
+#
+# Also dropped is the DSH_WEB_URL shell variable, which only mattered to an
+# agent editing its own GUI.
+#
+# Removing these is what lets the preset persona stop enumerating foreign names:
+# a translation rule only has to cover names the model can actually still see.
+#
+# The other three keys are restated verbatim from the shipped row because patch
+# application replaces a `config` mapping WHOLE — it is not a deep merge. Naming
+# `surfaceContext` alone silently deletes its siblings, and the dangerous one is
+# `trustedHosts`: it feeds the /api trust fence from `--trusted-host`, so losing
+# it makes the fence reject the Host header nginx forwards and the GUI stops
+# loading for every user, with the composed config looking perfectly reasonable.
+# `printUrl` is the readiness line systemd watches for. Keep all four together.
+- id: web-runtime
+  config:
+    openBrowser: !!js ctx.webStartup.openBrowser
+    printUrl: true
+    surfaceContext: false
+    trustedHosts: !!js ctx.webStartup.trustedHosts
