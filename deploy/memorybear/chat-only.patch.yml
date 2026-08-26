@@ -37,3 +37,41 @@
 # is why the notice disappears, rather than something breaking.
 - id: ui-settings-models
   disabled: true
+
+# ── surfaces that name other products ───────────────────────────────────────
+#
+# These are the last places the GUI itself showed a foreign brand to the user,
+# which is the whole point of removing them rather than a tidiness preference.
+
+# The Plugins settings section: per-namespace configuration cards. It is also a
+# host-plane control surface, which a chat product has no reason to expose.
+- id: ui-settings-plugins
+  disabled: true
+
+# The plugin inventory. It lists every composed row by package name, so it puts
+# the entire @deepseek-ai/dsh-* namespace in front of the user.
+- id: ui-settings-plugin-inventory
+  disabled: true
+
+# The Cordis inspection surface. It is named after the vendored framework and
+# presents the composition itself.
+- id: ui-cordis
+  disabled: true
+
+# ── panels whose capability this deployment does not mount ───────────────────
+#
+# Each of these renders a projection of something the MemoryBear preset no
+# longer contributes, so leaving them mounted would show permanently empty
+# panels. Their host-plane registries stay; only the surfaces go.
+
+# Subagent panels — the preset mounts no delegation group.
+- id: ui-subagent
+  disabled: true
+
+# Workflow run records — the preset mounts no workflow engine.
+- id: ui-workflow-run
+  disabled: true
+
+# Goal panel — the preset mounts no goal tool.
+- id: ui-goal
+  disabled: true

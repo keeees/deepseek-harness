@@ -95,14 +95,11 @@
 
 # ── goals ───────────────────────────────────────────────────────────────────
 
-# Only the model-facing tool. The goal SERVICE, its session driver, and the
-# `/goal` command stay on the host plane: the Gateway serves the goal domain as
-# Remote endpoints whose receiver comes from a generated descriptor, so it
-# resolves `goals` on the host and an entry-local realm here would hide it. The
-# registry is keyed by session anyway, so one host instance serves every
-# session. What a preset chooses is whether its agent can call the goal tool.
-- id: tool-goal
-  name: '@deepseek-ai/dsh-tool-goal'
+# The goal tool upstream mounts here is deliberately absent, so this agent has
+# no long-horizon goal tracking. The goal SERVICE, its session driver and the
+# /goal command remain on the host plane and simply go unused; the client panel
+# is disabled alongside in chat-only.patch.yml. Restoring it is this one row.
+
 
 # ── plan mode ───────────────────────────────────────────────────────────────
 
@@ -178,69 +175,25 @@
 # that singleton rather than a tool this agent calls, and the setup list is
 # not scope-aware — one copy per mounted preset means every child gets
 # `report` registered once per live session, which throws on the second.
-- id: delegation
-  name: cordis:group
-  group: true
-  isolate:
-    workflowEngine: true
-  config:
-    - id: tool-subagent-control
-      name: '@deepseek-ai/dsh-tool-subagent-control'
+# ── delegation: deliberately absent ─────────────────────────────────────────
+#
+# Upstream mounts a nine-row delegation group here — subagent spawn/fork/control,
+# the agent listing, two external-CLI backends, the workflow engine and its
+# worker thread, and the ralph loop. None of it is mounted for this deployment,
+# for three reasons:
+#
+#   * The two external backends drive other vendors' CLIs. Their names would
+#     reach the tool list and the prompt, and their linux-arm64 binaries never
+#     installed on this machine, so the tools could only fail when called.
+#   * Multi-agent orchestration is not usable at this deployment's model size,
+#     and every mounted tool spends prompt budget on its own description —
+#     which is prefill cost on every single turn.
+#   * The workflow engine publishes a service into an entry-local realm, so it
+#     is only ever worth mounting when something in this preset consumes it.
+#
+# The registry and the report setup stay host-plane either way. Restoring this
+# means copying the group back from upstream's `standard` preset.
 
-    - id: tool-subagent-list-agents
-      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
-
-    - id: tool-subagent
-      name: '@deepseek-ai/dsh-tool-subagent'
-      config:
-        provider: spawn
-        toolName: subagent
-        backgroundMode: continuable
-
-    - id: tool-subagent-fork
-      name: '@deepseek-ai/dsh-tool-subagent'
-      config:
-        provider: fork
-        toolName: subagent_fork
-        backgroundMode: continuable
-
-    # Production dsh does not install these optional providers. Install the
-    # matching Bundle in this Profile and restart the Host, then copy this
-    # preset and remove `disabled` from the matching tool row. Host availability
-    # alone grants no tool.
-    - id: tool-subagent-codex
-      name: '@deepseek-ai/dsh-tool-subagent'
-      disabled: true
-      config:
-        provider: codex
-        toolName: subagent_codex
-        backgroundMode: one-shot
-        maxDepth: provider-managed
-
-    - id: tool-subagent-claude-code
-      name: '@deepseek-ai/dsh-tool-subagent'
-      disabled: true
-      config:
-        provider: claude-code
-        toolName: subagent_claude_code
-        backgroundMode: one-shot
-        maxDepth: provider-managed
-
-    - id: workflow-worker-thread
-      name: '@deepseek-ai/dsh-workflow-worker-thread'
-      config:
-        provider: spawn
-
-    - id: tool-workflow
-      name: '@deepseek-ai/dsh-tool-workflow'
-
-    - id: tool-ralph
-      name: '@deepseek-ai/dsh-tool-ralph'
-      config:
-        subagentProvider: spawn
-        maxRounds: 64
-
-# ── remaining model-facing rows ─────────────────────────────────────────────
 
 - id: tool-ask-user
   name: '@deepseek-ai/dsh-tool-ask-user'
