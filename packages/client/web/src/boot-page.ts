@@ -14,6 +14,25 @@ function div(className: string | undefined, text?: string): HTMLDivElement {
   return el
 }
 
+/**
+ * Wordmark shown while the plugin roster loads.
+ *
+ * FORK DIVERGENCE, and the one client source edit this brand layer needs. This
+ * page exists precisely because no plugin has loaded yet, so the slot system
+ * that carries every other brand surface cannot reach it and a launcher patch
+ * has nothing to patch — a rebranded deployment would show the upstream
+ * wordmark for the whole load, which is the first thing a user sees.
+ *
+ * `DSH_CLIENT_TITLE` is the build-time product name the repository already
+ * defines for exactly this purpose: `apps/web/vite.config.ts` puts it in the
+ * HTML title and `ui-renderer`'s DocumentTitle keeps the live document in sync.
+ * The client tsdown preset applies the same defines to this package, so reading
+ * it here needs no new machinery — the splash simply starts honoring the hook it
+ * was already ignoring. An unset value falls back to the shipped literal, which
+ * keeps local builds and the existing boot-page test unchanged.
+ */
+const BOOT_WORDMARK = process.env.DSH_CLIENT_TITLE ?? 'HARNESS'
+
 /** Kernel-owned page mounted below the application's root element. */
 export class BootPage {
   private readonly root: HTMLDivElement
@@ -34,7 +53,7 @@ export class BootPage {
     this.root = div(css.boot)
     this.root.dataset.dshBoot = ''
     this.card = div(css.card)
-    this.wordmark = div(css.wordmark, 'HARNESS')
+    this.wordmark = div(css.wordmark, BOOT_WORDMARK)
     this.spinner = div(css.spinner)
     this.spinner.dataset.dshBootSpinner = ''
     this.hint = div(css.hint, 'Loading plugins…')
