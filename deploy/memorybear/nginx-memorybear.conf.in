@@ -1,0 +1,127 @@
+# TLS front door for MemoryBear.
+#
+# One address serves the app, and it is whatever address this machine has:
+#
+#     https://<this machine>
+#
+# No port, because 443 is the https default, so a browser needs neither a port
+# nor the scheme typed. Every other way in redirects here rather than serving a
+# second copy, so a bookmark cannot land on a working-but-different origin --
+# which for a secure-context app would silently be a broken one.
+#
+# HTTPS is a functional requirement, not polish. The browser client mints
+# message ids and every RPC id with crypto.randomUUID(), which the Web Crypto
+# API exposes only in a secure context. Upstream serves 127.0.0.1, where a
+# plain-HTTP origin already qualifies; a LAN address over plain HTTP does not,
+# and every /api call fails with "crypto.randomUUID is not a function".
+#
+# The certificate is self-signed, so a browser warns once per client until it is
+# trusted. Accepting the warning still yields a secure context, which is all the
+# app needs.
+#
+# Every server_name is the catch-all `_`, and the app's browser-trust fence is
+# neutralized on purpose (see the Host and Origin headers below). This deployment
+# is meant to come up on whatever address a network hands it and be reachable by
+# any name pointed at it -- an IP, a hostname, an alias, a reverse proxy in front
+# of this one -- with no per-host edit anywhere.
+
+upstream memorybear_app {
+    server 127.0.0.1:@PORT@;
+    keepalive 16;
+}
+
+# Plain HTTP, on the standard port and on the port this deployment used before.
+# Never serves content: that origin cannot run the client.
+server {
+    listen 80;
+    listen 8080;
+    server_name _;
+    return 308 https://$host$request_uri;
+}
+
+# A previous TLS port, kept so existing bookmarks still land somewhere useful.
+# It redirects rather than serving, so the canonical origin stays the only one.
+# error_page 497 is nginx's "plain HTTP request sent to HTTPS port" -- the 400
+# that a bookmark like http://host:8443 would otherwise produce.
+server {
+    listen 8443 ssl;
+    server_name _;
+    ssl_certificate     @TLS_CRT@;
+    ssl_certificate_key @TLS_KEY@;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    error_page 497 =308 https://$host$request_uri;
+    return 308 https://$host$request_uri;
+}
+
+server {
+    # Every interface: the address literal is deliberately absent so a DHCP
+    # change cannot leave nginx unable to bind at boot.
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate     @TLS_CRT@;
+    ssl_certificate_key @TLS_KEY@;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache   shared:MemoryBearTLS:1m;
+    ssl_session_timeout 1h;
+
+    # Typing http:// against this port otherwise produces a bare nginx 400 page;
+    # send those to the same canonical address instead.
+    error_page 497 =308 https://$host$request_uri;
+
+    # SECURITY: no authentication, at the operator's decision. TLS here proves
+    # the server and encrypts the wire; it does not decide who may connect. The
+    # agent runs shell commands, so anyone who reaches this port has code
+    # execution as the service user. Uncomment both lines to require a
+    # credential, after creating the file with:
+    #   sudo htpasswd -c /etc/nginx/memorybear.htpasswd <user>
+    #auth_basic "MemoryBear";
+    #auth_basic_user_file /etc/nginx/memorybear.htpasswd;
+
+    # The agent streams long turns and holds an idle websocket between them.
+    proxy_read_timeout 1h;
+    proxy_send_timeout 1h;
+    # Model turns carry pasted files and images.
+    client_max_body_size 64m;
+    # Server-sent streams must not be buffered, or tokens arrive in bursts.
+    proxy_buffering off;
+
+    location / {
+        proxy_pass http://memorybear_app;
+        proxy_http_version 1.1;
+
+        # Present the request to the app as loopback, which is what disables its
+        # browser-trust fence. The fence refuses any non-loopback Host that has
+        # not been declared, so forwarding the browser's real Host means every
+        # new address needs a matching --trusted-host entry -- the per-host edit
+        # this deployment exists to avoid. A loopback Host is trusted
+        # unconditionally, so any name pointed at this machine now works.
+        #
+        # Origin must be removed in the same breath. The fence accepts an absent
+        # Origin (the Host check already bound the request) but requires a present
+        # one to equal the Host authority exactly, and the browser sends its real
+        # origin, which no longer matches the rewritten Host. An empty value is
+        # how nginx omits a header rather than sending it blank.
+        #
+        # WHAT THIS GIVES UP: the DNS-rebinding defense. A page the user visits
+        # could resolve its own name to this address and drive the agent. TLS is
+        # what still stands in the way -- this certificate matches only this
+        # machine's names, so a rebound https origin fails the handshake, and
+        # port 80 only redirects. The exposure that remains is anyone who can
+        # reach this port directly, which the fence never addressed.
+        proxy_set_header Host 127.0.0.1:@PORT@;
+        proxy_set_header Origin "";
+        # The address the browser actually used, preserved for logs and for any
+        # consumer that wants the real authority after the rewrite above.
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Lets the app know the browser's scheme is https even though this hop
+        # is plain HTTP over loopback.
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Websocket downlink upgrade.
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+}

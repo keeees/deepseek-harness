@@ -1,0 +1,71 @@
+[Unit]
+Description=MemoryBear web chat
+Documentation=https://github.com/keeees/deepseek-harness/tree/memorybear-brand-layer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GROUP@
+WorkingDirectory=@CHECKOUT@
+
+# No --trusted-host here, deliberately. The app's browser-trust fence refuses a
+# non-loopback Host it has not been told about, which made every new address or
+# DHCP lease a config edit -- and the failure mode is an app that loads and then
+# 403s every /api call, which reads as broken rather than unconfigured. nginx now
+# presents each request as loopback instead, which the fence trusts
+# unconditionally, so this deployment comes up on any address with no list to
+# maintain. See the Host/Origin rewrite in the nginx template for what that
+# costs.
+#
+# Wrapped in a shell because $MB_PATCHES must split into separate arguments and
+# systemd would otherwise pass it as one. `exec` keeps node as the unit's main
+# process, so signals and exit codes still belong to it.
+ExecStart=/bin/sh -c 'exec @NODE@ apps/cli/lib/bin.js web $MB_PATCHES --host "$MB_HOST" --port "$MB_PORT" --no-open $MB_EXTRA_ARGS'
+
+# The app prints the loopback URL it bound, which is not where anyone connects.
+# Journaling the real front-door address here makes `systemctl status memorybear`
+# answer "where do I open this" on a machine nobody has seen before.
+ExecStartPost=/bin/sh -c 'echo "MemoryBear is reachable at https://$(deploy/memorybear/local-authorities.sh primary)"'
+
+Environment=PATH=@NODE_DIR@:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=DSH_HOME=@DSH_HOME@
+
+# Launcher overlays, in order: brand, then model routing, then the chat-only
+# reduction. Dropping the second returns this deployment to a hosted model
+# without touching the brand layer.
+Environment="MB_PATCHES=--patch deploy/memorybear/brand.patch.yml --patch deploy/memorybear/local-vllm.patch.yml --patch deploy/memorybear/chat-only.patch.yml"
+
+# NOT a secret. The vLLM container runs without --api-key, so it never inspects
+# the Authorization header; this exists only because the provider refuses to be
+# built with no credential and would fail every turn with "No API key for
+# provider". The value is arbitrary. Note that the inherited environment
+# outranks the managed credential store, so a key set here also overrides
+# anything the Models page writes for this reference.
+Environment=LOCAL_VLLM_API_KEY=EMPTY
+
+# Loopback, because the TLS front door in nginx is what faces the network. This
+# is not a hardening choice that could be relaxed: the browser client mints ids
+# with crypto.randomUUID(), which exists only in a secure context, so a
+# plain-HTTP LAN origin loads the shell and then fails on the first request.
+# Binding this port to the network would only publish a broken address.
+Environment=MB_HOST=127.0.0.1
+Environment=MB_PORT=@PORT@
+
+# Optional overrides and credentials; an absent file is not an error.
+EnvironmentFile=-/etc/memorybear/memorybear.env
+
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=memorybear
+
+# Deliberately light confinement: this agent's purpose includes running shell
+# commands and editing files in its workspace, so ProtectHome or a read-only
+# filesystem would break the product rather than harden it.
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
